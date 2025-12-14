@@ -1,0 +1,5 @@
+---
+- name: Reiniciar Bind9
+  service:
+    name: named
+    state: restarted

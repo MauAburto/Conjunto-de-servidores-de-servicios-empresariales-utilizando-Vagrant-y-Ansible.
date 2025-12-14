@@ -1,0 +1,23 @@
+protocols = imap pop3 lmtp
+listen = *
+mail_location = maildir:/var/mail/vhosts/%d/%n/Maildir
+
+# Autenticación LDAP
+passdb {
+  driver = ldap
+  args = /etc/dovecot/dovecot-ldap.conf.ext
+}
+userdb {
+  driver = static
+  args = uid=vmail gid=vmail home=/var/mail/vhosts/%d/%n
+}
+
+service lmtp {
+  unix_listener /var/spool/postfix/private/dovecot-lmtp {
+    mode = 0600
+    user = postfix
+    group = postfix
+  }
+}
+ssl = no
+disable_plaintext_auth = no

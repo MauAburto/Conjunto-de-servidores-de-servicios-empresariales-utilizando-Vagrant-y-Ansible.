@@ -1,0 +1,9 @@
+﻿server_host = ldap.patitohosting.licic
+search_base = ou=Usuarios,dc=patitohosting,dc=licic
+version = 3
+bind = yes
+bind_dn = cn=admin,dc=patitohosting,dc=licic
+bind_pw = AdminPatito
+query_filter = (uid=%u)
+result_attribute = uid
+result_format = %u/Maildir/

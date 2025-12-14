@@ -1,0 +1,41 @@
+---
+- hosts: all
+  become: true
+  gather_facts: true
+  
+  pre_tasks:
+    - name: Actualizar caché de apt
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      tags: always
+    
+    - name: Instalar dependencias de Ansible
+      apt:
+        name: ['python3-pip', 'acl']
+        state: present
+
+- hosts: dns_servers
+  become: true
+  roles:
+    - dns
+
+- hosts: ldap_servers
+  become: true
+  roles:
+    - ldap
+
+- hosts: db_servers
+  become: true
+  roles:
+    - db
+
+- hosts: web_servers
+  become: true
+  roles:
+    - web
+
+- hosts: mail_servers
+  become: true
+  roles:
+    - mail

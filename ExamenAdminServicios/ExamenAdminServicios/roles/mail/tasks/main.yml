@@ -1,0 +1,152 @@
+---
+# (Opcional pero recomendado) Resolver DNS interno en el servidor mail
+- name: Remove systemd-resolved stub resolv.conf
+  file:
+    path: /etc/resolv.conf
+    state: absent
+
+- name: Configure resolv.conf to use internal DNS
+  copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver {{ internal_dns_ip }}
+      search {{ internal_dns_domain }}
+    owner: root
+    group: root
+    mode: "0644"
+
+# 1) Instalar Postfix + Dovecot + LDAP utils
+- name: Install mail stack packages
+  apt:
+    name:
+      - postfix
+      - dovecot-core
+      - dovecot-imapd
+      - dovecot-pop3d
+      - dovecot-lmtpd
+      - dovecot-ldap
+      - ldap-utils
+      - mailutils
+    state: present
+    update_cache: yes
+
+# 2) Usuario/Grupo vmail (para maildir virtual)
+- name: Ensure vmail group exists
+  group:
+    name: vmail
+    gid: 5000
+    state: present
+
+- name: Ensure vmail user exists
+  user:
+    name: vmail
+    uid: 5000
+    group: vmail
+    home: /var/mail/vhosts
+    shell: /usr/sbin/nologin
+    system: yes
+    create_home: no
+    state: present
+
+- name: Create vhosts base directory
+  file:
+    path: /var/mail/vhosts
+    state: directory
+    owner: vmail
+    group: vmail
+    mode: "0755"
+
+# 3) Postfix: main.cf + mapa LDAP
+- name: Deploy Postfix main.cf
+  template:
+    src: main.cf.j2
+    dest: /etc/postfix/main.cf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy Postfix LDAP users map
+  template:
+    src: postfix-ldap-users.cf.j2
+    dest: /etc/postfix/ldap-users.cf
+    owner: root
+    group: root
+    mode: "0600"
+
+# 4) Dovecot: conf base + LDAP + conf.d fragments
+- name: Deploy Dovecot main config
+  template:
+    src: dovecot.conf.j2
+    dest: /etc/dovecot/dovecot.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy Dovecot LDAP auth file
+  template:
+    src: dovecot-ldap.conf.ext.j2
+    dest: /etc/dovecot/dovecot-ldap.conf.ext
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Deploy Dovecot 10-mail.conf
+  template:
+    src: dovecot-10-mail.conf.j2
+    dest: /etc/dovecot/conf.d/10-mail.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy Dovecot 10-auth.conf
+  template:
+    src: dovecot-10-auth.conf.j2
+    dest: /etc/dovecot/conf.d/10-auth.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy Dovecot 10-master.conf
+  template:
+    src: dovecot-10-master.conf.j2
+    dest: /etc/dovecot/conf.d/10-master.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy Dovecot 20-lmtp.conf
+  template:
+    src: dovecot-20-lmtp.conf.j2
+    dest: /etc/dovecot/conf.d/20-lmtp.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Remove UTF-8 BOM from Postfix LDAP map (if present)
+  ansible.builtin.replace:
+    path: /etc/postfix/ldap-users.cf
+    regexp: '^\uFEFF'
+    replace: ''
+  notify: Restart Postfix
+
+- name: Remove UTF-8 BOM from Dovecot LDAP config (if present)
+  ansible.builtin.replace:
+    path: /etc/dovecot/dovecot-ldap.conf.ext
+    regexp: '^\uFEFF'
+    replace: ''
+  notify: Restart Dovecot
+
+
+# 5) Reiniciar servicios
+- name: Restart Postfix
+  service:
+    name: postfix
+    state: restarted
+    enabled: yes
+
+- name: Restart Dovecot
+  service:
+    name: dovecot
+    state: restarted
+    enabled: yes
+

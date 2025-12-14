@@ -1,0 +1,34 @@
+# OU Usuarios
+dn: ou=Usuarios,dc=patitohosting,dc=licic
+objectClass: organizationalUnit
+ou: Usuarios
+
+# OU Grupos
+dn: ou=Grupos,dc=patitohosting,dc=licic
+objectClass: organizationalUnit
+ou: Grupos
+
+# Grupo sysadmin
+dn: cn=sysadmin,ou=Grupos,dc=patitohosting,dc=licic
+objectClass: posixGroup
+cn: sysadmin
+gidNumber: 5000
+
+# Usuario jperez (mail listo para Postfix)
+dn: uid=jperez,ou=Usuarios,dc=patitohosting,dc=licic
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: jperez
+sn: Perez
+givenName: Juan
+cn: Juan Perez
+displayName: Juan Perez
+uidNumber: 10000
+gidNumber: 5000
+mail: jperez@patitohosting.licic
+userPassword: {{ generated_password }}
+gecos: Juan Perez
+loginShell: /bin/bash
+homeDirectory: /home/jperez
+

@@ -1,0 +1,23 @@
+<VirtualHost *:80>
+    ServerName www.patitohosting.licic
+    # Redirigir todo el tráfico a HTTPS (Seguro)
+    Redirect permanent / https://www.patitohosting.licic/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName www.patitohosting.licic
+    DocumentRoot /var/www/html/wordpress
+
+    SSLEngine on
+    SSLCertificateFile /etc/apache2/ssl/apache.crt
+    SSLCertificateKeyFile /etc/apache2/ssl/apache.key
+
+    <Directory /var/www/html/wordpress>
+        Options FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/patito_error.log
+    CustomLog ${APACHE_LOG_DIR}/patito_access.log combined
+</VirtualHost>

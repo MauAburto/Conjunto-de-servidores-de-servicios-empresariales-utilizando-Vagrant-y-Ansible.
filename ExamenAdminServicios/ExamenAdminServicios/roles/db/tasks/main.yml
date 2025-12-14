@@ -1,0 +1,47 @@
+---
+# 1. Instalación de paquetes
+- name: Instalar MariaDB y librería Python
+  apt:
+    name:
+      - mariadb-server
+      - python3-pymysql # Necesario para que Ansible maneje la BD
+      - snmpd           # Requisito del examen
+    state: present
+    update_cache: yes
+
+# 2. Configuración de Red (Permitir conexiones remotas)
+- name: Permitir conexiones remotas (bind-address 0.0.0.0)
+  template:
+    src: 50-server.cnf.j2
+    dest: /etc/mysql/mariadb.conf.d/50-server.cnf
+  notify: Reiniciar MariaDB
+
+- name: Iniciar servicio MariaDB
+  service:
+    name: mariadb
+    state: started
+    enabled: yes
+
+# 3. Gestión de Usuarios y Base de Datos
+- name: Crear Base de Datos para el CMS
+  community.mysql.mysql_db:
+    name: cms_db
+    state: present
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+
+- name: Crear usuario 'cms_user' con acceso remoto
+  community.mysql.mysql_user:
+    name: cms_user
+    password: 'dbpassword123'
+    host: '%' # El comodín '%' permite conectarse desde cualquier IP (necesario para el Web)
+    priv: 'cms_db.*:ALL'
+    state: present
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+
+# 4. Seguridad Básica
+- name: Eliminar usuarios anónimos
+  community.mysql.mysql_user:
+    name: ''
+    host_all: yes
+    state: absent
+    login_unix_socket: /var/run/mysqld/mysqld.sock

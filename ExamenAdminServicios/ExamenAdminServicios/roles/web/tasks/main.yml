@@ -1,0 +1,210 @@
+---
+# =========================
+# WEB ROLE - tasks/main.yml
+# DNS real (Bind9), Apache+PHP, SSL, WordPress
+# =========================
+
+# Variables esperadas (en group_vars/all.yml o inventory):
+# internal_dns_ip: "192.168.56.10"
+# internal_dns_domain: "patitohosting.licic"
+# web_fqdn: "www.patitohosting.licic"
+# web_alias: "www"
+#
+# db_host: "db.patitohosting.licic"
+# db_name: "cms_db"
+# db_user: "wp_user"
+# db_password: "TuPasswordFuerte"
+
+- name: Ensure required variables exist (fail fast with friendly message)
+  ansible.builtin.assert:
+    that:
+      - internal_dns_ip is defined
+      - internal_dns_domain is defined
+      - web_fqdn is defined
+      - db_host is defined
+      - db_name is defined
+      - db_user is defined
+      - db_password is defined
+    fail_msg: >
+      Faltan variables. Define en group_vars/all.yml o inventory:
+      internal_dns_ip, internal_dns_domain, web_fqdn, db_host, db_name, db_user, db_password
+  become: true
+
+# ---------- DNS: forzar que el cliente use el DNS interno ----------
+# (Sin tocar nsswitch, solo resolv.conf)
+- name: Remove systemd-resolved stub resolv.conf (if it exists as symlink/file)
+  ansible.builtin.file:
+    path: /etc/resolv.conf
+    state: absent
+  become: true
+
+- name: Write resolv.conf pointing to internal DNS (Bind9)
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver {{ internal_dns_ip }}
+      search {{ internal_dns_domain }}
+      options timeout:1 attempts:3 rotate
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+
+# ---------- /etc/hosts: quitar SOLO el override malo (loopback para FQDN) ----------
+# Esto era lo que te mandaba a 127.0.2.1 y "le ganaba" al DNS.
+- name: Remove loopback mapping for web_fqdn in /etc/hosts (DNS must win)
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^\s*127\.\d+\.\d+\.\d+\s+{{ web_fqdn | regex_escape }}(\s+{{ web_alias | default("www") | regex_escape }})?\s*$'
+    state: absent
+    backrefs: false
+  become: true
+
+# ---------- Paquetes base ----------
+- name: Install base packages (Apache, PHP, tools)
+  ansible.builtin.apt:
+    name:
+      - apache2
+      - php
+      - libapache2-mod-php
+      - php-mysql
+      - php-ldap
+      - php-xml
+      - php-curl
+      - php-gd
+      - php-mbstring
+      - unzip
+      - openssl
+      - curl
+      - ca-certificates
+      - dnsutils     # para dig (check DNS)
+      - netcat-openbsd
+    state: present
+    update_cache: yes
+  become: true
+
+# ---------- Apache mods (sin apache2_module para evitar dependencias extra) ----------
+- name: Enable Apache modules (ssl, rewrite)
+  ansible.builtin.command: "a2enmod {{ item }}"
+  args:
+    creates: "/etc/apache2/mods-enabled/{{ item }}.load"
+  loop:
+    - ssl
+    - rewrite
+  notify: Restart Apache
+  become: true
+
+# ---------- SSL self-signed ----------
+- name: Create SSL directory
+  ansible.builtin.file:
+    path: /etc/apache2/ssl
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+- name: Generate self-signed certificate (idempotent)
+  ansible.builtin.command: >
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048
+    -keyout /etc/apache2/ssl/apache.key
+    -out /etc/apache2/ssl/apache.crt
+    -subj "/C=MX/ST=Veracruz/L=Xalapa/O=PatitoHosting/CN={{ web_fqdn }}"
+  args:
+    creates: /etc/apache2/ssl/apache.crt
+  notify: Restart Apache
+  become: true
+
+# ---------- VirtualHost ----------
+- name: Deploy Apache vhost config (patito.conf)
+  ansible.builtin.template:
+    src: patito.conf.j2
+    dest: /etc/apache2/sites-available/patito.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Apache
+  become: true
+
+- name: Enable patito site and disable default site (idempotent)
+  ansible.builtin.shell: |
+    a2ensite patito.conf
+    a2dissite 000-default.conf || true
+  args:
+    executable: /bin/bash
+  notify: Restart Apache
+  become: true
+
+# ---------- WordPress ----------
+- name: Download WordPress tarball
+  ansible.builtin.get_url:
+    url: https://wordpress.org/latest.tar.gz
+    dest: /tmp/wordpress.tar.gz
+    mode: '0644'
+  become: true
+
+- name: Unarchive WordPress to /var/www/html (creates wordpress dir)
+  ansible.builtin.unarchive:
+    src: /tmp/wordpress.tar.gz
+    dest: /var/www/html/
+    remote_src: yes
+    creates: /var/www/html/wordpress
+  become: true
+
+- name: Ensure WordPress permissions (www-data)
+  ansible.builtin.file:
+    path: /var/www/html/wordpress
+    owner: www-data
+    group: www-data
+    mode: '0755'
+    recurse: yes
+  become: true
+
+- name: Deploy wp-config.php (DB points by DNS name)
+  ansible.builtin.template:
+    src: wp-config.php.j2
+    dest: /var/www/html/wordpress/wp-config.php
+    owner: www-data
+    group: www-data
+    mode: '0640'
+  notify: Restart Apache
+  become: true
+
+# ---------- Service sanity checks ----------
+- name: Ensure Apache is enabled and started
+  ansible.builtin.systemd:
+    name: apache2
+    enabled: true
+    state: started
+  become: true
+
+- name: Quick HTTP check (local)
+  ansible.builtin.shell: |
+    set -e
+    curl -I http://127.0.0.1 | sed -n '1,12p'
+  args:
+    executable: /bin/bash
+  register: http_check
+  changed_when: false
+  become: true
+
+- name: Verify resolution is coming from DNS (getent + dig)
+  ansible.builtin.shell: |
+    set -e
+    echo "getent hosts {{ web_fqdn }}:"
+    getent hosts {{ web_fqdn }} || true
+    echo
+    echo "dig @{{ internal_dns_ip }} {{ web_fqdn }} +short:"
+    dig @{{ internal_dns_ip }} {{ web_fqdn }} +short
+  args:
+    executable: /bin/bash
+  register: dns_check
+  changed_when: false
+  become: true
+
+- name: Show checks
+  ansible.builtin.debug:
+    msg:
+      - "{{ http_check.stdout_lines | default([]) }}"
+      - "{{ dns_check.stdout_lines | default([]) }}"
+

@@ -1,0 +1,48 @@
+---
+# Instalar paquetes necesarios
+- name: Instalar paquetes de BIND9
+  apt:
+    name:
+      - bind9
+      - bind9-utils
+      - bind9-doc
+    state: present
+    update_cache: yes
+
+# Copiar configuración global
+- name: Copiar configuración de opciones (named.conf.options)
+  template:
+    src: named.conf.options.j2
+    dest: /etc/bind/named.conf.options
+    owner: root
+    group: bind
+    mode: '0644'
+  notify: Reiniciar Bind9
+
+# Copiar definición de la zona (tu dominio)
+- name: Copiar declaración de zonas (named.conf.local)
+  template:
+    src: named.conf.local.j2
+    dest: /etc/bind/named.conf.local
+    owner: root
+    group: bind
+    mode: '0644'
+  notify: Reiniciar Bind9
+
+# Crear el archivo con las IPs
+- name: Copiar archivo de zona maestra (db.patitohosting.licic)
+  template:
+    src: db.patitohosting.licic.j2
+    dest: /var/lib/bind/db.patitohosting.licic
+    owner: root
+    group: bind
+    mode: '0644'
+    force: yes
+  notify: Reiniciar Bind9
+
+# Asegurar que el servicio arranque
+- name: Iniciar y habilitar servicio Bind9
+  service:
+    name: named
+    state: started
+    enabled: yes

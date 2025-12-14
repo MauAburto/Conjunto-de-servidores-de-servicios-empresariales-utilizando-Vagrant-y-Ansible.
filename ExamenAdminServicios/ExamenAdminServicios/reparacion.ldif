@@ -1,0 +1,28 @@
+dn: ou=Usuarios,dc=patitohosting,dc=licic
+objectClass: organizationalUnit
+ou: Usuarios
+
+dn: ou=Grupos,dc=patitohosting,dc=licic
+objectClass: organizationalUnit
+ou: Grupos
+
+dn: cn=sysadmin,ou=Grupos,dc=patitohosting,dc=licic
+objectClass: posixGroup
+cn: sysadmin
+gidNumber: 5000
+
+dn: uid=jperez,ou=Usuarios,dc=patitohosting,dc=licic
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: jperez
+sn: Perez
+givenName: Juan
+cn: Juan Perez
+displayName: Juan Perez
+uidNumber: 10000
+gidNumber: 5000
+userPassword: {SSHA}ppgC1n4wR/XfO+o2qR2MQAqH1V0Z7iM1
+gecos: Juan Perez
+loginShell: /bin/bash
+homeDirectory: /home/jperez

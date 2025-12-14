@@ -1,0 +1,24 @@
+; Archivo de Zona para patitohosting.licic
+$TTL    604800
+@       IN      SOA     ns.patitohosting.licic. root.patitohosting.licic. (
+                              2         ; Serial
+                         604800         ; Refresh
+                          86400         ; Retry
+                        2419200         ; Expire
+                         604800 )       ; Negative Cache TTL
+;
+; Servidor de Nombres (NS)
+@       IN      NS      ns.patitohosting.licic.
+
+; --- LISTA DE MAQUINAS (Registros A) ---
+; La raiz (@) apunta al servidor web
+@       IN      A       192.168.56.13
+
+; Definición de cada servidor
+ns      IN      A       192.168.56.10
+ldap    IN      A       192.168.56.11
+db      IN      A       192.168.56.12
+www     IN      A       192.168.56.13
+email   IN      A       192.168.56.14
+
+@       IN      MX      10 email.patitohosting.licic.

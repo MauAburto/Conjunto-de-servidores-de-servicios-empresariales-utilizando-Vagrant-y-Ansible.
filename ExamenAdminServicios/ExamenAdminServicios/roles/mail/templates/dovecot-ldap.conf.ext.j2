@@ -1,0 +1,9 @@
+hosts = ldap.patitohosting.licic
+dn = cn=admin,dc=patitohosting,dc=licic
+dnpass = AdminPatito
+ldap_version = 3
+base = ou=Usuarios,dc=patitohosting,dc=licic
+scope = subtree
+user_filter = (uid=%n)
+pass_filter = (uid=%n)
+auth_bind = yes

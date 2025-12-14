@@ -1,0 +1,15 @@
+options {
+    directory "/var/cache/bind";
+
+    // Reenviadores a Google (8.8.8.8) para tener internet en las VMs
+    forwarders {
+        8.8.8.8;
+        8.8.4.4;
+    };
+
+    dnssec-validation no;
+    listen-on-v6 { any; };
+
+    // Permitir consultas desde cualquier IP (útil para la red interna)
+    allow-query { any; };
+};

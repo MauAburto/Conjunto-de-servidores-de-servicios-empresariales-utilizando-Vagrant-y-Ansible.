@@ -1,0 +1,94 @@
+---
+- name: Remove systemd-resolved stub resolv.conf
+  file:
+    path: /etc/resolv.conf
+    state: absent
+
+- name: Configure resolv.conf to use internal DNS
+  copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver {{ internal_dns_ip }}
+      search {{ internal_dns_domain }}
+    owner: root
+    group: root
+    mode: '0644'
+
+# 1. Instalación (Sin pre-configuración compleja)
+- name: Instalar OpenLDAP y utilidades
+  apt:
+    name:
+      - slapd
+      - ldap-utils
+    state: present
+    update_cache: yes
+
+- name: Iniciar servicio SLAPD
+  service:
+    name: slapd
+    state: started
+    enabled: yes
+
+# --- SECCIÓN DE "FORZAR CONFIG" ---
+# Entramos como root del sistema (EXTERNAL) para ajustar la base (suffix, rootpw, access)
+
+- name: Generar hash para la contraseña de Admin (AdminPatito)
+  command: slappasswd -s AdminPatito
+  register: admin_hash
+  changed_when: false
+
+- name: Crear archivo para forzar configuración base (suffix/rootpw/access)
+  copy:
+    dest: /tmp/force_pass.ldif
+    content: |
+      dn: olcDatabase={1}mdb,cn=config
+      changetype: modify
+      replace: olcRootPW
+      olcRootPW: {{ admin_hash.stdout }}
+      -
+      replace: olcSuffix
+      olcSuffix: dc=patitohosting,dc=licic
+      -
+      replace: olcAccess
+      olcAccess: {0}to attrs=userPassword by self write by anonymous auth by * none
+      olcAccess: {1}to attrs=shadowLastChange by self write by * read
+      olcAccess: {2}to * by * read
+
+- name: Aplicar configuración base al LDAP (EXTERNAL)
+  command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/force_pass.ldif
+  register: ldap_force_apply
+  changed_when: "'modifying entry' in (ldap_force_apply.stdout | default(''))"
+  failed_when: false
+
+# --- FIN SECCIÓN FORZAR CONFIG ---
+
+# 2. Generación Hash Usuario (jperez)
+- name: Generar hash para la contraseña del usuario (UserPatito)
+  command: slappasswd -s UserPatito
+  register: user_pass_hash
+  changed_when: false
+
+# 3. Estructura Base + Usuario
+- name: Copiar archivo de estructura base
+  template:
+    src: structure.ldif.j2
+    dest: /tmp/structure.ldif
+    mode: '0644'
+  vars:
+    generated_password: "{{ user_pass_hash.stdout }}"
+
+# 4. Verificar existencia REAL del usuario (ldapsearch da rc=0 aunque no encuentre)
+- name: Verificar si el usuario jperez ya existe (buscando dn exacto)
+  shell: |
+    ldapsearch -x \
+      -D "cn=admin,dc=patitohosting,dc=licic" -w AdminPatito \
+      -b "dc=patitohosting,dc=licic" "(uid=jperez)" \
+    | grep -q "^dn: uid=jperez,ou=Usuarios,dc=patitohosting,dc=licic"
+  register: ldap_jperez_exists
+  changed_when: false
+  failed_when: false
+
+- name: Importar estructura base al LDAP (si no existe jperez)
+  shell: ldapadd -x -D "cn=admin,dc=patitohosting,dc=licic" -w AdminPatito -f /tmp/structure.ldif
+  when: ldap_jperez_exists.rc != 0
+

@@ -1,0 +1,80 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-22.04"
+  config.vm.box_check_update = false
+  config.vm.boot_timeout = 600
+
+  # Función para provisionar con Ansible Localmente
+  def provision_ansible(node, playbook, role_limit)
+    node.vm.provision "ansible_local" do |ansible|
+      ansible.playbook = playbook
+      ansible.limit = role_limit
+      ansible.inventory_path = "/vagrant/inventory.ini"
+      ansible.install_mode = "pip"
+      ansible.version = "2.10.7"
+      ansible.verbose = "v"
+    end
+  end
+
+  # 1. Servidor DNS
+  config.vm.define "dns" do |dns|
+    dns.vm.hostname = "ns.patitohosting.licic"
+    dns.vm.network "private_network", ip: "192.168.56.10"
+    dns.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 1
+      vb.name = "Examen_DNS"
+    end
+    provision_ansible(dns, "site.yml", "dns_servers")
+  end
+
+  # 2. Servidor LDAP
+  config.vm.define "ldap" do |ldap|
+    ldap.vm.hostname = "ldap.patitohosting.licic"
+    ldap.vm.network "private_network", ip: "192.168.56.11"
+    ldap.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 1
+      vb.name = "Examen_LDAP"
+    end
+    provision_ansible(ldap, "site.yml", "ldap_servers")
+  end
+
+  # 3. Servidor Base de Datos
+  config.vm.define "db" do |db|
+    db.vm.hostname = "db.patitohosting.licic"
+    db.vm.network "private_network", ip: "192.168.56.12"
+    db.vm.provider "virtualbox" do |vb|
+      vb.memory = "768"
+      vb.cpus = 1
+      vb.name = "Examen_DB"
+    end
+    provision_ansible(db, "site.yml", "db_servers")
+  end
+
+  # 4. Servidor Web
+  config.vm.define "web" do |web|
+    web.vm.hostname = "www.patitohosting.licic"
+    web.vm.network "private_network", ip: "192.168.56.13"
+    web.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 1
+      vb.name = "Examen_Web"
+    end
+    provision_ansible(web, "site.yml", "web_servers")
+  end
+
+  # 5. Servidor Correo
+  config.vm.define "mail" do |mail|
+    mail.vm.hostname = "email.patitohosting.licic"
+    mail.vm.network "private_network", ip: "192.168.56.14"
+    mail.vm.provider "virtualbox" do |vb|
+      vb.memory = "2048"
+      vb.cpus = 2
+      vb.name = "Examen_Mail"
+    end
+    provision_ansible(mail, "site.yml", "mail_servers")
+  end
+end

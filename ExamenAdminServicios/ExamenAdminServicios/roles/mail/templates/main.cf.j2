@@ -1,0 +1,22 @@
+# Host y Dominio
+myhostname = email.patitohosting.licic
+mydomain = patitohosting.licic
+myorigin = $mydomain
+
+# Redes permitidas (Localhost y la red de Vagrant)
+mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128 192.168.56.0/24
+
+# --- SEGURIDAD OBLIGATORIA (Corrección del error) ---
+# Esto le dice a Postfix: "Solo acepta correos de mi red o usuarios autenticados, rechaza el resto"
+smtpd_relay_restrictions = permit_mynetworks, permit_sasl_authenticated, defer_unauth_destination
+# ----------------------------------------------------
+
+# Buzones Virtuales (Usando LDAP)
+virtual_mailbox_domains = patitohosting.licic
+virtual_mailbox_base = /var/mail/vhosts
+virtual_mailbox_maps = ldap:/etc/postfix/ldap-users.cf
+virtual_uid_maps = static:5000
+virtual_gid_maps = static:5000
+
+# Integración con Dovecot (para entregar el correo)
+virtual_transport = lmtp:unix:private/dovecot-lmtp

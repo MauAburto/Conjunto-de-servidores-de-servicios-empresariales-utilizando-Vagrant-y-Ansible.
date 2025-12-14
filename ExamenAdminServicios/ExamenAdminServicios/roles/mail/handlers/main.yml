@@ -1,0 +1,12 @@
+---
+- name: Reiniciar Postfix
+  listen: Restart Postfix
+  ansible.builtin.service:
+    name: postfix
+    state: restarted
+
+- name: Reiniciar Dovecot
+  listen: Restart Dovecot
+  ansible.builtin.service:
+    name: dovecot
+    state: restarted
